@@ -2,6 +2,24 @@
 #include <stdio.h>
 #include "pico/stdlib.h"
 #include "hardware/clocks.h"
+#include "log.h"
+
+const uint32_t CLK_SYS_LOW_KHZ = 62500;
+
+// В Pico SDK src/rp2_common/hardware_clocks/clocks.c set_sys_clock_pll()
+// при PICO_CLOCK_ADJUST_PERI_CLOCK_WITH_SYS_CLOCK == 0 переводит clk_peri
+// на PLL_USB, 48 МГц. Он остаётся на ней и после возврата clk_sys к штатной частоте.
+static void clk_sys_set(uint32_t khz)
+{
+    if (set_sys_clock_khz(khz, false))
+    {
+        LOG_INF("clk_sys %u kHz\n", (unsigned)khz);
+    }
+    else
+    {
+        LOG_ERR("clk_sys %u kHz is not set\n", (unsigned)khz);
+    }
+}
 
 static void row(const char *name, uint32_t set_khz, uint32_t measured_khz)
 {
@@ -30,4 +48,14 @@ void clk_info(void)
 void uptime(void)
 {
     printf("uptime: %llu ms\n", (unsigned long long)(time_us_64() / 1000u));
+}
+
+void clk_sys_low(void)
+{
+    clk_sys_set(CLK_SYS_LOW_KHZ);
+}
+
+void clk_sys_default(void)
+{
+    clk_sys_set(SYS_CLK_KHZ);
 }
