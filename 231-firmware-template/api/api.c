@@ -8,6 +8,7 @@
 #include "pico/stdlib.h"
 #include "device.h"
 #include "profiling.h"
+#include "led-task/led-task.h"
 
 typedef struct
 {
@@ -68,6 +69,68 @@ static void cmd_uptime(const command_t *command)
     printf("uptime: %llu ms\n", (unsigned long long)(time_us_64() / 1000u));
 }
 
+static void print_led_state(void)
+{
+    const char *state_name = "off";
+
+    switch (led_task_get_state())
+    {
+    case LED_STATE_OFF:
+        break;
+    case LED_STATE_ON:
+        state_name = "on";
+        break;
+    case LED_STATE_BLINK:
+        state_name = "blink";
+        break;
+    }
+
+    printf("led: %s, period %u ms\n", state_name,
+           (unsigned)led_task_get_period_ms());
+}
+
+static void cmd_led_enable(const command_t *command)
+{
+    (void)command;
+    led_task_set_state(LED_STATE_ON);
+    print_led_state();
+}
+
+static void cmd_led_disable(const command_t *command)
+{
+    (void)command;
+    led_task_set_state(LED_STATE_OFF);
+    print_led_state();
+}
+
+static void cmd_led_blink(const command_t *command)
+{
+    (void)command;
+    led_task_set_state(LED_STATE_BLINK);
+    print_led_state();
+}
+
+static void cmd_led_period(const command_t *command)
+{
+    uint32_t period_ms;
+
+    if (command->argc != 1 || !parse_u32(command->argv[0], &period_ms))
+    {
+        printf("error: usage led_period <period_ms>\n");
+        return;
+    }
+
+    // годится ли такой период, решает задача светодиода
+    if (!led_task_set_period_ms(period_ms))
+    {
+        printf("error: period_ms must be greater than 0\n");
+        return;
+    }
+
+    // ответ: состояние и период светодиода
+    print_led_state();
+}
+
 static void cmd_calc_pi(const command_t *command)
 {
     uint32_t terms = CALC_PI_DEFAULT_TERMS;
@@ -110,6 +173,10 @@ static void cmd_main_time_reset(const command_t *command)
 static const api_command_t commands[] = {
     { "info", "device passport", cmd_info },
     { "uptime", "time since reset", cmd_uptime },
+    { "led_enable", "turn LED on", cmd_led_enable },
+    { "led_disable", "turn LED off", cmd_led_disable },
+    { "led_blink", "blink LED", cmd_led_blink },
+    { "led_period", "set blink period: led_period <period_ms>", cmd_led_period },
     { "calc_pi", "calculate pi: calc_pi [terms]", cmd_calc_pi },
     { "main_time_exec", "superloop iteration: average and maximum", cmd_main_time_exec },
     { "main_time_reset", "reset maximum iteration", cmd_main_time_reset },
