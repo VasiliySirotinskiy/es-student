@@ -10,6 +10,7 @@
 #include "profiling.h"
 #include "led-task/led-task.h"
 #include "button-task/button-task.h"
+#include "pi-task/pi-task.h"
 
 typedef struct
 {
@@ -18,7 +19,7 @@ typedef struct
     void (*callback)(const command_t *command);
 } api_command_t;
 
-static const uint32_t CALC_PI_DEFAULT_TERMS = 1000000u;
+static const uint32_t PI_DEFAULT_TERMS = 1000000u;
 
 // Число без знака из десятичной записи. false — в записи не только цифры
 // или число не помещается в uint32_t.
@@ -42,20 +43,6 @@ static bool parse_u32(const char *text, uint32_t *value)
 
     *value = (uint32_t)number;
     return true;
-}
-
-static double calc_pi(uint32_t terms)
-{
-    double sum = 0.0;
-    double sign = 1.0;
-
-    for (uint32_t k = 0; k < terms; k++)
-    {
-        sum += sign / (2.0 * k + 1.0);
-        sign = -sign;
-    }
-
-    return 4.0 * sum;
 }
 
 static void cmd_info(const command_t *command)
@@ -140,14 +127,14 @@ static void cmd_button(const command_t *command)
            (unsigned)button_task_get_press_count());
 }
 
-static void cmd_calc_pi(const command_t *command)
+static void cmd_pi_start(const command_t *command)
 {
-    uint32_t terms = CALC_PI_DEFAULT_TERMS;
+    uint32_t terms = PI_DEFAULT_TERMS;
 
     if (command->argc > 1 ||
         (command->argc == 1 && !parse_u32(command->argv[0], &terms)))
     {
-        printf("error: usage calc_pi [terms]\n");
+        printf("error: usage pi_start [<terms>]\n");
         return;
     }
 
@@ -157,12 +144,34 @@ static void cmd_calc_pi(const command_t *command)
         return;
     }
 
-    uint64_t start_us = time_us_64();
-    double result = calc_pi(terms);
-    uint64_t spent_us = time_us_64() - start_us;
+    if (!pi_task_start(terms))
+    {
+        printf("error: pi is busy\n");
+        return;
+    }
 
-    printf("pi: %.9f\n", result);
-    printf("time: %llu ms\n", (unsigned long long)(spent_us / 1000u));
+    printf("pi: started, %u terms\n", (unsigned)terms);
+}
+
+static void cmd_pi(const command_t *command)
+{
+    (void)command;
+    double result;
+    uint64_t elapsed_ms;
+
+    if (pi_task_get_result(&result, &elapsed_ms))
+    {
+        printf("pi: %.9f in %llu ms\n", result,
+               (unsigned long long)elapsed_ms);
+    }
+    else if (pi_task_get_state() == PI_STATE_RUNNING)
+    {
+        printf("pi: running\n");
+    }
+    else
+    {
+        printf("pi: not started\n");
+    }
 }
 
 static void cmd_main_time_exec(const command_t *command)
@@ -187,7 +196,8 @@ static const api_command_t commands[] = {
     { "led_blink", "blink LED", cmd_led_blink },
     { "led_period", "set blink period: led_period <period_ms>", cmd_led_period },
     { "button", "button state and press count", cmd_button },
-    { "calc_pi", "calculate pi: calc_pi [terms]", cmd_calc_pi },
+    { "pi_start", "start pi calculation: pi_start [<terms>]", cmd_pi_start },
+    { "pi", "pi result or calculation state", cmd_pi },
     { "main_time_exec", "superloop iteration: average and maximum", cmd_main_time_exec },
     { "main_time_reset", "reset maximum iteration", cmd_main_time_reset },
 };
