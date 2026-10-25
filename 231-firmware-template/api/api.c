@@ -9,6 +9,7 @@
 #include "device.h"
 #include "profiling.h"
 #include "led-task/led-task.h"
+#include "button-task/button-task.h"
 
 typedef struct
 {
@@ -131,6 +132,14 @@ static void cmd_led_period(const command_t *command)
     print_led_state();
 }
 
+static void cmd_button(const command_t *command)
+{
+    (void)command;
+    printf("button: %s, presses %u\n",
+           button_task_is_pressed() ? "pressed" : "released",
+           (unsigned)button_task_get_press_count());
+}
+
 static void cmd_calc_pi(const command_t *command)
 {
     uint32_t terms = CALC_PI_DEFAULT_TERMS;
@@ -177,6 +186,7 @@ static const api_command_t commands[] = {
     { "led_disable", "turn LED off", cmd_led_disable },
     { "led_blink", "blink LED", cmd_led_blink },
     { "led_period", "set blink period: led_period <period_ms>", cmd_led_period },
+    { "button", "button state and press count", cmd_button },
     { "calc_pi", "calculate pi: calc_pi [terms]", cmd_calc_pi },
     { "main_time_exec", "superloop iteration: average and maximum", cmd_main_time_exec },
     { "main_time_reset", "reset maximum iteration", cmd_main_time_reset },

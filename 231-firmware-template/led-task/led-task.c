@@ -76,6 +76,22 @@ led_state_t led_task_get_state(void)
     return led_state;
 }
 
+void led_task_next_state(void)
+{
+    switch (led_state)
+    {
+    case LED_STATE_OFF:
+        led_task_set_state(LED_STATE_ON);
+        break;
+    case LED_STATE_ON:
+        led_task_set_state(LED_STATE_BLINK);
+        break;
+    case LED_STATE_BLINK:
+        led_task_set_state(LED_STATE_OFF);
+        break;
+    }
+}
+
 bool led_task_set_period_ms(uint32_t period_ms)
 {
     if (period_ms == 0)
