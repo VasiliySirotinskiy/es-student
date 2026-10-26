@@ -3,8 +3,8 @@
 #include "pico/stdlib.h"
 
 // По таблице курса: 585 тактов на член ряда при частоте 125 МГц.
-// 100 * 585 / 125000000 = 0,000468 с = 468 мкс < 0,5 мс.
-#define PI_TERMS_PER_CALL 100
+// 80 * 585 / 125000000 = 0,0003744 с = 374,4 мкс < 0,5 мс.
+#define PI_TERMS_PER_CALL 80
 
 static pi_state_t pi_state = PI_STATE_NOT_STARTED;
 static uint32_t pi_k = 0;
