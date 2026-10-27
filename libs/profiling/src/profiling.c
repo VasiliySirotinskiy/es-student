@@ -1,7 +1,7 @@
-#include "profiling.h"
+#include "profiling/profiling.h"
 
 #include <stddef.h>
-#include "pico/stdlib.h"
+#include "systime/systime.h"
 
 typedef struct
 {
@@ -26,6 +26,7 @@ void profiling_stopwatch_init(uint32_t id, const char *name)
     stopwatches[id] = (stopwatch_t){.name = name, .initialized = true};
 }
 
+#if PROFILING_ENABLED
 void profiling_start(uint32_t id)
 {
     if (id >= PROFILING_STOPWATCH_COUNT || !stopwatches[id].initialized)
@@ -33,7 +34,7 @@ void profiling_start(uint32_t id)
         return;
     }
 
-    stopwatches[id].started_us = time_us_32();
+    stopwatches[id].started_us = (uint32_t)systime_us();
     stopwatches[id].running = true;
 }
 
@@ -46,7 +47,7 @@ void profiling_stop(uint32_t id)
     }
 
     stopwatch_t *stopwatch = &stopwatches[id];
-    uint32_t elapsed_us = time_us_32() - stopwatch->started_us;
+    uint32_t elapsed_us = (uint32_t)systime_us() - stopwatch->started_us;
     stopwatch->running = false;
     stopwatch->sum_us += elapsed_us;
     stopwatch->count++;
@@ -56,6 +57,7 @@ void profiling_stop(uint32_t id)
         stopwatch->max_us = elapsed_us;
     }
 }
+#endif
 
 bool profiling_get(uint32_t id, profiling_result_t *result)
 {
@@ -79,7 +81,7 @@ bool profiling_get(uint32_t id, profiling_result_t *result)
 
 void profiling_reset(void)
 {
-    uint32_t now_us = time_us_32();
+    uint32_t now_us = (uint32_t)systime_us();
 
     for (uint32_t id = 0; id < PROFILING_STOPWATCH_COUNT; id++)
     {
