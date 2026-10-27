@@ -1,4 +1,4 @@
-#include "pico/stdlib.h"
+#include "platform/platform.h"
 #include "led-task/led-task.h"
 #include "button-task/button-task.h"
 #include "pi-task/pi-task.h"
@@ -6,7 +6,7 @@
 #include "firmware.h"
 #include "profiling/profiling.h"
 #include "stdio-text-protocol/stdio-text-protocol.h"
-#include "api.h"
+#include "api/api.h"
 
 typedef enum
 {
@@ -19,9 +19,9 @@ typedef enum
 
 int main(void)
 {
-    stdio_init_all();
+    platform_init();
     led_task_init();
-    button_task_init();
+    button_task_init(led_task_next_state);
     pi_task_init();
     stdio_text_protocol_init();
     profiling_stopwatch_init(STOPWATCH_LOOP, "loop");
