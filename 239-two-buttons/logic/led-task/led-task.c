@@ -75,6 +75,11 @@ void led_task_next_state(void)
     }
 }
 
+void led_task_blink(void)
+{
+    led_task_set_state(LED_STATE_BLINK);
+}
+
 void led_task_next_period(void)
 {
     switch (blink_period_ms)

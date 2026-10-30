@@ -15,14 +15,19 @@ typedef struct
 {
     button_state_t state;
     uint64_t changed_us;
+    uint64_t pressed_us;
     uint32_t press_count;
-    button_task_callback_t on_press;
+    button_task_callback_t on_short;
+    button_task_callback_t on_long;
+    bool long_reported;
 } button_context_t;
 
 static const uint64_t DEBOUNCE_US = 20000;
+static const uint64_t LONG_PRESS_US = 1000000;
 static button_context_t contexts[PLATFORM_BUTTON_COUNT];
 
-void button_task_init(platform_button_t button, button_task_callback_t on_press)
+void button_task_init(platform_button_t button, button_task_callback_t on_short,
+                      button_task_callback_t on_long)
 {
     if ((uint32_t)button >= PLATFORM_BUTTON_COUNT)
     {
@@ -31,8 +36,11 @@ void button_task_init(platform_button_t button, button_task_callback_t on_press)
 
     contexts[button].state = BUTTON_STATE_RELEASED;
     contexts[button].changed_us = 0;
+    contexts[button].pressed_us = 0;
     contexts[button].press_count = 0;
-    contexts[button].on_press = on_press;
+    contexts[button].on_short = on_short;
+    contexts[button].on_long = on_long;
+    contexts[button].long_reported = false;
 }
 
 void button_task_handle(void)
@@ -64,9 +72,11 @@ void button_task_handle(void)
             {
                 context->state = BUTTON_STATE_PRESSED;
                 context->press_count++;
-                if (context->on_press != NULL)
+                context->pressed_us = now_us;
+                context->long_reported = false;
+                if (context->on_long == NULL && context->on_short != NULL)
                 {
-                    context->on_press();
+                    context->on_short();
                 }
             }
             break;
@@ -76,6 +86,12 @@ void button_task_handle(void)
             {
                 context->changed_us = now_us;
                 context->state = BUTTON_STATE_RELEASE_DEBOUNCE;
+            }
+            else if (context->on_long != NULL && !context->long_reported &&
+                     now_us - context->pressed_us >= LONG_PRESS_US)
+            {
+                context->long_reported = true;
+                context->on_long();
             }
             break;
 
@@ -87,6 +103,11 @@ void button_task_handle(void)
             else if (now_us - context->changed_us >= DEBOUNCE_US)
             {
                 context->state = BUTTON_STATE_RELEASED;
+                if (context->on_long != NULL && !context->long_reported &&
+                    context->on_short != NULL)
+                {
+                    context->on_short();
+                }
             }
             break;
         }
