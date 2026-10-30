@@ -34,3 +34,4 @@
 ![2.3.6](https://github.com/VasiliySirotinskiy/es-student/actions/workflows/check-2-3-6.yml/badge.svg)
 ![2.3.7](https://github.com/VasiliySirotinskiy/es-student/actions/workflows/check-2-3-7.yml/badge.svg)
 ![2.3.8](https://github.com/VasiliySirotinskiy/es-student/actions/workflows/check-2-3-8.yml/badge.svg)
+![2.3.9](https://github.com/VasiliySirotinskiy/es-student/actions/workflows/check-2-3-9.yml/badge.svg)
