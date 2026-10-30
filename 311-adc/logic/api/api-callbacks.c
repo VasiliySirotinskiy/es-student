@@ -1,4 +1,5 @@
 #include "api/api-commands.h"
+#include "api/api.h"
 
 #include <ctype.h>
 #include <errno.h>
@@ -14,6 +15,9 @@
 #include "platform/platform.h"
 
 static const uint32_t PI_DEFAULT_TERMS = 1000000u;
+
+// период телеметрии по умолчанию
+#define TELEMETRY_DEFAULT_PERIOD_MS 100
 
 // Число без знака из десятичной записи. false — в записи не только цифры
 // или число не помещается в uint32_t.
@@ -69,6 +73,40 @@ static void cmd_get_temp(const command_t *command)
 {
     (void)command;
     printf("temp: %.1f C\n", (double)platform_temp_read());
+}
+
+void api_print_telemetry(const telemetry_record_t *record)
+{
+    printf("tm: %llu %.3f %.1f\n", (unsigned long long)record->time_us,
+           (double)record->voltage_v, (double)record->temp_c);
+}
+
+static void cmd_tm_start(const command_t *command)
+{
+    uint32_t period_ms = TELEMETRY_DEFAULT_PERIOD_MS;
+
+    if (command->argc > 1 ||
+        (command->argc == 1 && !parse_u32(command->argv[0], &period_ms)))
+    {
+        printf("error: usage tm_start [<period_ms>]\n");
+        return;
+    }
+
+    if (!telemetry_task_start(period_ms))
+    {
+        printf("error: period_ms must be at least 10\n");
+        return;
+    }
+
+    printf("telemetry: started, period %u ms\n",
+           (unsigned)telemetry_task_get_period_ms());
+}
+
+static void cmd_tm_stop(const command_t *command)
+{
+    (void)command;
+    telemetry_task_stop();
+    printf("telemetry: stopped\n");
 }
 
 static void cmd_uptime(const command_t *command)
@@ -224,6 +262,8 @@ const api_command_t api_commands[] = {
     { "info", "device passport", cmd_info },
     { "get_voltage", "voltage on GP26, ADC input 0", cmd_get_voltage },
     { "get_temp", "chip temperature, degrees Celsius", cmd_get_temp },
+    { "tm_start", "start telemetry: tm_start [<period_ms>]", cmd_tm_start },
+    { "tm_stop", "stop telemetry", cmd_tm_stop },
     { "uptime", "time since reset", cmd_uptime },
     { "led_enable", "turn LED on", cmd_led_enable },
     { "led_disable", "turn LED off", cmd_led_disable },
