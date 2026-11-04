@@ -20,6 +20,9 @@ static const uint32_t PI_DEFAULT_TERMS = 1000000u;
 // период телеметрии по умолчанию
 #define TELEMETRY_DEFAULT_PERIOD_MS 100
 
+// период индикатора записи во время потока
+#define STREAM_BLINK_PERIOD_MS 250
+
 // Число без знака из десятичной записи. false — в записи не только цифры
 // или число не помещается в uint32_t.
 static bool parse_u32(const char *text, uint32_t *value)
@@ -240,6 +243,54 @@ static void cmd_dma_cap(const command_t *command)
     }
 }
 
+void api_send_frame(const stream_header_t *header, const uint8_t *data, uint32_t bytes)
+{
+    // байты заголовка и отсчётов как они лежат в памяти
+    platform_write(header, sizeof(*header));
+    platform_write(data, bytes);
+}
+
+static void cmd_stream_start(const command_t *command)
+{
+    uint32_t bits = 16;
+
+    if (command->argc > 1 ||
+        (command->argc == 1 && !parse_u32(command->argv[0], &bits)) ||
+        (bits != 8 && bits != 16))
+    {
+        printf("error: usage stream_start [8|16]\n");
+        return;
+    }
+
+    if (telemetry_task_get_state() == TELEMETRY_STATE_RUN ||
+        !stream_task_start((uint8_t)bits))
+    {
+        printf("error: adc busy\n");
+        return;
+    }
+
+    printf("stream: started, %u Hz, %u bit\n",
+           (unsigned)PLATFORM_SAMPLE_RATE_HZ, (unsigned)bits);
+    platform_blink_start(STREAM_BLINK_PERIOD_MS);
+    led_task_set_state(LED_STATE_OFF);
+}
+
+static void cmd_stream_stop(const command_t *command)
+{
+    (void)command;
+
+    if (stream_task_get_state() == STREAM_STATE_RUN)
+    {
+        stream_task_stop();
+        platform_blink_stop();
+    }
+
+    printf("stream: stopped, %u frames, %u samples, %u overruns\n",
+           (unsigned)stream_task_get_frames(),
+           (unsigned)stream_task_get_samples(),
+           (unsigned)stream_task_get_overruns());
+}
+
 static void cmd_charge_on(const command_t *command)
 {
     (void)command;
@@ -438,6 +489,8 @@ const api_command_t api_commands[] = {
     { "cap_start", "capture ADC: cap_start <N> <period_us>", cmd_cap_start },
     { "cap_dump", "captured samples and timer intervals", cmd_cap_dump },
     { "dma_cap", "capture ADC through DMA: dma_cap <N>", cmd_dma_cap },
+    { "stream_start", "start ADC stream: stream_start [8|16]", cmd_stream_start },
+    { "stream_stop", "stop ADC stream, counters and overruns", cmd_stream_stop },
     { "charge_on", "charge RC circuit", cmd_charge_on },
     { "charge_off", "discharge RC circuit", cmd_charge_off },
     { "timer_blink_start", "blink led by timer: timer_blink_start <period_ms>", cmd_timer_blink_start },

@@ -35,6 +35,7 @@ typedef enum {
     ADC_FREE,
     ADC_CAPTURE,
     ADC_BLOCK,
+    ADC_STREAM,
 } adc_user_t;
 
 static volatile adc_user_t adc_user;
@@ -52,6 +53,13 @@ static uint16_t block_samples[PLATFORM_BLOCK_MAX];
 static uint32_t block_start_us;
 static volatile uint32_t block_end_us;
 static volatile bool block_ready;
+
+static int stream_channels[2];
+static uint8_t stream_buffers[2][PLATFORM_STREAM_BYTES] __attribute__((aligned(4)));
+static volatile bool stream_ready[2];
+static volatile uint32_t stream_overruns;
+static uint32_t stream_samples;
+static uint32_t stream_next;
 
 // АЦП в непрерывном режиме с шагом 44,1 кГц, буфер АЦП с запросом DMA
 // на каждый отсчёт
@@ -79,6 +87,28 @@ static void on_block_done(void)
     adc_one_shot();
     block_ready = true;
     adc_user = ADC_FREE;
+}
+
+// обработчик прерывания DMA_IRQ_0: канал заполнил свой буфер
+static void on_stream_buffer(void)
+{
+    for (int i = 0; i < 2; i++)
+    {
+        if (dma_channel_get_irq0_status(stream_channels[i]))
+        {
+            dma_channel_acknowledge_irq0(stream_channels[i]);
+
+            // адрес записи дошёл до конца буфера, вернуть его к началу
+            dma_channel_set_write_addr(stream_channels[i], stream_buffers[i], false);
+
+            // в следующий буфер уже идёт запись, а его ещё не отправили
+            if (stream_ready[(i + 1) % 2])
+            {
+                stream_overruns++;
+            }
+            stream_ready[i] = true;
+        }
+    }
 }
 
 // обработчик будильника захвата: время и отсчёт, затем время своей работы
@@ -136,6 +166,12 @@ void platform_init(void)
     dma_channel_set_irq1_enabled(block_channel, true);
     irq_set_exclusive_handler(DMA_IRQ_1, on_block_done);
     irq_set_enabled(DMA_IRQ_1, true);
+
+    // два канала потока сообщают о заполненном буфере через DMA_IRQ_0
+    stream_channels[0] = dma_claim_unused_channel(true);
+    stream_channels[1] = dma_claim_unused_channel(true);
+    irq_set_exclusive_handler(DMA_IRQ_0, on_stream_buffer);
+    irq_set_enabled(DMA_IRQ_0, true);
 }
 
 void platform_led_set(bool on)
@@ -306,4 +342,98 @@ const uint16_t *platform_block_samples(void)
 uint32_t platform_block_time_us(void)
 {
     return block_end_us - block_start_us;
+}
+
+bool platform_stream_start(uint8_t bits)
+{
+    if (adc_user != ADC_FREE || bits != 16)
+    {
+        return false;
+    }
+
+    stream_samples = PLATFORM_STREAM_BYTES / 2;
+    adc_free_running();
+
+    // канал i пишет в буфер i и по окончании запускает другой канал
+    for (int i = 0; i < 2; i++)
+    {
+        // номер следующего канала в цепочке
+        int next_channel = stream_channels[(i + 1) % 2];
+
+        dma_channel_config cfg = dma_channel_get_default_config(stream_channels[i]);
+        channel_config_set_transfer_data_size(&cfg, DMA_SIZE_16);
+        channel_config_set_read_increment(&cfg, false);
+        channel_config_set_write_increment(&cfg, true);
+        channel_config_set_dreq(&cfg, DREQ_ADC);
+        channel_config_set_chain_to(&cfg, next_channel);
+        dma_channel_configure(stream_channels[i], &cfg, stream_buffers[i], &adc_hw->fifo,
+                              stream_samples, false);
+        dma_channel_set_irq0_enabled(stream_channels[i], true);
+        stream_ready[i] = false;
+    }
+
+    stream_overruns = 0;
+    stream_next = 0;
+    adc_user = ADC_STREAM;
+    dma_channel_start(stream_channels[0]);
+    adc_run(true);
+    return true;
+}
+
+void platform_stream_stop(void)
+{
+    if (adc_user != ADC_STREAM)
+    {
+        return;
+    }
+
+    // сначала остановить отсчёты, затем каналы и их прерывания
+    adc_run(false);
+
+    // RP2040-E13: передача, начатая до прерывания канала, завершается как обычная
+    // и запускает канал из цепочки. Поэтому цепочка сначала разрывается: каждый
+    // канал указывает сам на себя, иначе один из них останется взведённым
+    for (int i = 0; i < 2; i++)
+    {
+        dma_channel_config cfg = dma_get_channel_config(stream_channels[i]);
+        channel_config_set_chain_to(&cfg, stream_channels[i]);
+        dma_channel_set_config(stream_channels[i], &cfg, false);
+    }
+
+    for (int i = 0; i < 2; i++)
+    {
+        dma_channel_set_irq0_enabled(stream_channels[i], false);
+        dma_channel_abort(stream_channels[i]);
+        dma_channel_acknowledge_irq0(stream_channels[i]);
+    }
+    adc_one_shot();
+    adc_user = ADC_FREE;
+}
+
+const uint8_t *platform_stream_next(uint32_t *samples)
+{
+    if (!stream_ready[stream_next])
+    {
+        return NULL;
+    }
+
+    *samples = stream_samples;
+    return stream_buffers[stream_next];
+}
+
+void platform_stream_release(void)
+{
+    stream_ready[stream_next] = false;
+    stream_next = (stream_next + 1) % 2;
+}
+
+uint32_t platform_stream_overruns(void)
+{
+    return stream_overruns;
+}
+
+void platform_write(const void *data, uint32_t bytes)
+{
+    // false, false — без перевода строки в конце и без замены \n на \r\n
+    stdio_put_string((const char *)data, (int)bytes, false, false);
 }
