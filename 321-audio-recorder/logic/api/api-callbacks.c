@@ -12,6 +12,7 @@
 #include "led-task/led-task.h"
 #include "button-task/button-task.h"
 #include "pi-task/pi-task.h"
+#include "block-task/block-task.h"
 #include "platform/platform.h"
 
 static const uint32_t PI_DEFAULT_TERMS = 1000000u;
@@ -188,6 +189,54 @@ static void cmd_cap_dump(const command_t *command)
         {
             printf("\n");
         }
+    }
+}
+
+static void print_dma_cap(const uint16_t *samples, uint32_t count, uint32_t time_us)
+{
+    uint16_t minimum = samples[0];
+    uint16_t maximum = samples[0];
+    uint32_t sum = 0;
+
+    for (uint32_t i = 0; i < count; i++)
+    {
+        if (samples[i] < minimum)
+        {
+            minimum = samples[i];
+        }
+        if (samples[i] > maximum)
+        {
+            maximum = samples[i];
+        }
+        sum += samples[i];
+    }
+
+    uint64_t expected_us = (uint64_t)count * 1000000u / PLATFORM_SAMPLE_RATE_HZ;
+    printf("dma_cap: %u samples in %u us, expected %llu us, min %u max %u mean %.1f\n",
+           (unsigned)count, (unsigned)time_us, (unsigned long long)expected_us,
+           (unsigned)minimum, (unsigned)maximum, (double)sum / count);
+}
+
+static void cmd_dma_cap(const command_t *command)
+{
+    uint32_t count;
+
+    if (command->argc != 1 || !parse_u32(command->argv[0], &count))
+    {
+        printf("error: usage dma_cap <N>\n");
+        return;
+    }
+
+    if (count == 0 || count > PLATFORM_BLOCK_MAX)
+    {
+        printf("error: N must be 1..8192\n");
+        return;
+    }
+
+    if (telemetry_task_get_state() == TELEMETRY_STATE_RUN ||
+        !block_task_start(count, print_dma_cap))
+    {
+        printf("error: adc busy\n");
     }
 }
 
@@ -388,6 +437,7 @@ const api_command_t api_commands[] = {
     { "tm_stop", "stop telemetry", cmd_tm_stop },
     { "cap_start", "capture ADC: cap_start <N> <period_us>", cmd_cap_start },
     { "cap_dump", "captured samples and timer intervals", cmd_cap_dump },
+    { "dma_cap", "capture ADC through DMA: dma_cap <N>", cmd_dma_cap },
     { "charge_on", "charge RC circuit", cmd_charge_on },
     { "charge_off", "discharge RC circuit", cmd_charge_off },
     { "timer_blink_start", "blink led by timer: timer_blink_start <period_ms>", cmd_timer_blink_start },

@@ -31,6 +31,7 @@ target_include_directories(platform PUBLIC
 target_link_libraries(platform PRIVATE
     pico_stdlib
     hardware_adc
+    hardware_dma
 )
 
 # логика прибора: задачи и команды, без SDK
@@ -41,6 +42,7 @@ add_library(logic STATIC
     logic/button-task/button-task.c
     logic/pi-task/pi-task.c
     logic/telemetry-task/telemetry-task.c
+    logic/block-task/block-task.c
 )
 
 target_include_directories(logic PUBLIC
