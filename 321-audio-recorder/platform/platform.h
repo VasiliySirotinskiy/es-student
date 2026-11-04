@@ -78,3 +78,7 @@ uint32_t platform_stream_overruns(void);
 
 // отправляет байты в порт как есть, без замены \n на \r\n
 void platform_write(const void *data, uint32_t bytes);
+
+// тон на GP20: меандр частоты freq_hz от модуля ШИМ, ядро в нём не участвует;
+// 0 — тон выключен, на выводе снова ноль; false — частота вне 20..20000 Гц
+bool platform_tone_set(uint32_t freq_hz);

@@ -291,6 +291,32 @@ static void cmd_stream_stop(const command_t *command)
            (unsigned)stream_task_get_overruns());
 }
 
+static void cmd_generate_tone(const command_t *command)
+{
+    uint32_t freq_hz;
+
+    if (command->argc != 1 || !parse_u32(command->argv[0], &freq_hz))
+    {
+        printf("error: usage generate_tone <Hz>\n");
+        return;
+    }
+
+    if (!platform_tone_set(freq_hz))
+    {
+        printf("error: Hz must be 0 or 20..20000\n");
+        return;
+    }
+
+    if (freq_hz == 0)
+    {
+        printf("tone: off\n");
+    }
+    else
+    {
+        printf("tone: %u Hz\n", (unsigned)freq_hz);
+    }
+}
+
 static void cmd_charge_on(const command_t *command)
 {
     (void)command;
@@ -491,6 +517,7 @@ const api_command_t api_commands[] = {
     { "dma_cap", "capture ADC through DMA: dma_cap <N>", cmd_dma_cap },
     { "stream_start", "start ADC stream: stream_start [8|16]", cmd_stream_start },
     { "stream_stop", "stop ADC stream, counters and overruns", cmd_stream_stop },
+    { "generate_tone", "generate test tone: generate_tone <Hz>", cmd_generate_tone },
     { "charge_on", "charge RC circuit", cmd_charge_on },
     { "charge_off", "discharge RC circuit", cmd_charge_off },
     { "timer_blink_start", "blink led by timer: timer_blink_start <period_ms>", cmd_timer_blink_start },

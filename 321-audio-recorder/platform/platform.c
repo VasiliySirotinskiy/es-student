@@ -2,8 +2,10 @@
 
 #include "pico/stdlib.h"
 #include "hardware/adc.h"
+#include "hardware/clocks.h"
 #include "hardware/dma.h"
 #include "hardware/irq.h"
+#include "hardware/pwm.h"
 
 // вход АЦП: вывод GP26, канал 0
 #define ADC_PIN 26
@@ -14,6 +16,12 @@
 
 // вывод, через резистор заряжающий конденсатор RC-цепи
 #define CHARGE_PIN 22
+
+// вывод тона, его меандр делает модуль ШИМ
+#define TONE_PIN 20
+
+// счёт ШИМ тона: делитель приводит clk_sys к 1 МГц, счётчик считает микросекунды
+#define TONE_COUNT_HZ 1000000
 
 // опорное напряжение АЦП на плате Pico и число уровней 12-разрядного кода
 #define ADC_VREF_V 3.3f
@@ -156,6 +164,12 @@ void platform_init(void)
     gpio_init(CHARGE_PIN);
     gpio_put(CHARGE_PIN, false);
     gpio_set_dir(CHARGE_PIN, GPIO_OUT);
+
+    gpio_set_function(TONE_PIN, GPIO_FUNC_PWM);
+    uint slice = pwm_gpio_to_slice_num(TONE_PIN);
+    pwm_set_clkdiv(slice, clock_get_hz(clk_sys) / (float)TONE_COUNT_HZ);
+    pwm_set_gpio_level(TONE_PIN, 0);
+    pwm_set_enabled(slice, true);
 
     adc_init();
     adc_gpio_init(ADC_PIN);
@@ -436,4 +450,23 @@ void platform_write(const void *data, uint32_t bytes)
 {
     // false, false — без перевода строки в конце и без замены \n на \r\n
     stdio_put_string((const char *)data, (int)bytes, false, false);
+}
+
+bool platform_tone_set(uint32_t freq_hz)
+{
+    if (freq_hz == 0)
+    {
+        pwm_set_gpio_level(TONE_PIN, 0);
+        return true;
+    }
+
+    if (freq_hz < 20 || freq_hz > 20000)
+    {
+        return false;
+    }
+
+    uint32_t period = TONE_COUNT_HZ / freq_hz;
+    pwm_set_wrap(pwm_gpio_to_slice_num(TONE_PIN), period - 1);
+    pwm_set_gpio_level(TONE_PIN, period / 2);
+    return true;
 }
