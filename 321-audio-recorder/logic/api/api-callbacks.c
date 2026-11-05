@@ -317,6 +317,45 @@ static void cmd_generate_tone(const command_t *command)
     }
 }
 
+static void cmd_wdt_enable(const command_t *command)
+{
+    uint32_t timeout_ms;
+
+    if (command->argc != 1 || !parse_u32(command->argv[0], &timeout_ms))
+    {
+        printf("error: usage wdt_enable <timeout_ms>\n");
+        return;
+    }
+
+    if (!platform_watchdog_enable(timeout_ms))
+    {
+        printf("error: timeout_ms must be 1..8388\n");
+        return;
+    }
+
+    printf("wdt: enabled, timeout %u ms\n", (unsigned)timeout_ms);
+}
+
+static void cmd_hang(const command_t *command)
+{
+    (void)command;
+    printf("hang: superloop stopped\n");
+
+    // суперцикл больше не идёт, прерывания приходят как прежде
+    while (1)
+    {
+    }
+}
+
+static void cmd_reset_reason(const command_t *command)
+{
+    (void)command;
+    uint32_t restarts;
+    bool watchdog_reset = platform_watchdog_caused_reset(&restarts);
+    printf("reset: %s, restarts %u\n", watchdog_reset ? "watchdog" : "other",
+           (unsigned)restarts);
+}
+
 static void cmd_charge_on(const command_t *command)
 {
     (void)command;
@@ -518,6 +557,9 @@ const api_command_t api_commands[] = {
     { "stream_start", "start ADC stream: stream_start [8|16]", cmd_stream_start },
     { "stream_stop", "stop ADC stream, counters and overruns", cmd_stream_stop },
     { "generate_tone", "generate test tone: generate_tone <Hz>", cmd_generate_tone },
+    { "wdt_enable", "enable watchdog: wdt_enable <timeout_ms>", cmd_wdt_enable },
+    { "hang", "stop superloop until reset", cmd_hang },
+    { "reset_reason", "last reset cause and restart count", cmd_reset_reason },
     { "charge_on", "charge RC circuit", cmd_charge_on },
     { "charge_off", "discharge RC circuit", cmd_charge_off },
     { "timer_blink_start", "blink led by timer: timer_blink_start <period_ms>", cmd_timer_blink_start },

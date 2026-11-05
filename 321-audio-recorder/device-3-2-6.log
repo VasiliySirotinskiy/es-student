@@ -1,0 +1,85 @@
+задание: 3.2.6
+проект: 321-audio-recorder
+устройство: 2e8a:000a
+серийный номер: 5303284728D63F9C
+порт: COM7
+начало: 2026-11-06T01:25:24
+   0.001 --> 
+   0.501 --> help
+   0.502 <-- help
+   0.503 <-- help             list of commands
+   0.503 <-- info             device passport
+   0.503 <-- get_voltage      voltage on GP26, ADC input 0
+   0.503 <-- get_temp         chip temperature, degrees Celsius
+   0.503 <-- tm_start         start telemetry: tm_start [<period_ms>]
+   0.503 <-- tm_stop          stop telemetry
+   0.503 <-- cap_start        capture ADC: cap_start <N> <period_us>
+   0.504 <-- cap_dump         captured samples and timer intervals
+   0.504 <-- dma_cap          capture ADC through DMA: dma_cap <N>
+   0.504 <-- stream_start     start ADC stream: stream_start [8|16]
+   0.504 <-- stream_stop      stop ADC stream, counters and overruns
+   0.504 <-- generate_tone    generate test tone: generate_tone <Hz>
+   0.504 <-- wdt_enable       enable watchdog: wdt_enable <timeout_ms>
+   0.504 <-- hang             stop superloop until reset
+   0.504 <-- reset_reason     last reset cause and restart count
+   0.505 <-- charge_on        charge RC circuit
+   0.505 <-- charge_off       discharge RC circuit
+   0.505 <-- timer_blink_start blink led by timer: timer_blink_start <period_ms>
+   0.505 <-- timer_blink_stop stop timer blink, number of toggles
+   0.505 <-- uptime           time since reset
+   0.505 <-- led_enable       turn LED on
+   0.505 <-- led_disable      turn LED off
+   0.505 <-- led_blink        blink LED
+   0.505 <-- led_period       set blink period: led_period <period_ms>
+   0.505 <-- button           button state and press count
+   0.505 <-- pi_start         start pi calculation: pi_start [<terms>]
+   0.561 <-- pi               pi result or calculation state
+   0.563 <-- profiling        stopwatches: count, mean and maximum
+   0.564 <-- profiling_reset  reset stopwatch results
+   1.564 --> info
+   1.625 <-- info
+   1.628 <-- name: es-recorder
+   1.628 <-- version: 1.0.0
+   1.628 <-- project: 321-audio-recorder
+   1.628 <-- repo: https://github.com/VasiliySirotinskiy/es-student
+   1.628 <-- board: pico
+   1.628 <-- serial: 5303284728D63F9C
+   1.628 <-- chip: manufacturer 0x927, part 0x0002, revision 2
+   1.628 <-- pico-sdk: 2.3.0
+   2.624 --> reset_reason
+   2.687 <-- reset_reason
+   2.688 <-- reset: other, restarts 0
+   3.186 --> wdt_enable 9000
+   3.248 <-- wdt_enable 9000
+   3.249 <-- error: timeout_ms must be 1..8388
+   3.688 --> wdt_enable 2000
+   3.749 <-- wdt_enable 2000
+   3.749 <-- wdt: enabled, timeout 2000 ms
+   4.190 --> uptime
+   4.252 <-- uptime
+   4.253 <-- uptime: 8852 ms
+   7.203 --> uptime
+   7.266 <-- uptime
+   7.267 <-- uptime: 11865 ms
+   7.710 --> hang
+   7.771 <-- hang
+   7.771 <-- hang: superloop stopped
+   8.712 --- ждём перезапуска платы
+  10.544 --- плата снова на связи
+  10.545 --> reset_reason
+  10.595 <-- reset_reason
+  10.601 <-- reset: watchdog, restarts 1
+  11.094 --> uptime
+  11.157 <-- uptime
+  11.157 <-- uptime: 1355 ms
+  11.598 --> info
+  11.659 <-- info
+  11.659 <-- name: es-recorder
+  11.659 <-- version: 1.0.0
+  11.659 <-- project: 321-audio-recorder
+  11.660 <-- repo: https://github.com/VasiliySirotinskiy/es-student
+  11.660 <-- board: pico
+  11.660 <-- serial: 5303284728D63F9C
+  11.660 <-- chip: manufacturer 0x927, part 0x0002, revision 2
+  11.660 <-- pico-sdk: 2.3.0
+итог: отправлено кадров 12, принято строк 64
