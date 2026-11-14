@@ -14,6 +14,18 @@ bool platform_button_read(void);
 
 float platform_voltage_read(void);
 
+// частота отсчётов АЦП в блоке: предел модуля, 96 тактов clk_adc на отсчёт
+#define PLATFORM_SAMPLE_RATE_HZ 500000
+
+// 8,2 мс линии: символ на 9600 бит/с длится 1 мс
+#define PLATFORM_BLOCK_MAX 4096
+bool platform_block_start(uint32_t count);
+bool platform_block_done(void);
+const uint16_t *platform_block_samples(void);
+
+// время захвата блока, от запуска АЦП до последнего отсчёта
+uint32_t platform_block_time_us(void);
+
 // режим вывода GP22, который ведёт линию RC-цепи
 typedef enum {
     PLATFORM_LINE_PUSH_PULL,

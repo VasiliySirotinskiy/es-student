@@ -14,6 +14,7 @@
 #include "pi-task/pi-task.h"
 #include "edge-task/edge-task.h"
 #include "uart-task/uart-task.h"
+#include "block-task/block-task.h"
 
 static const uint32_t PI_DEFAULT_TERMS = 1000000u;
 static const size_t TEXT_MAX_LENGTH = 32;
@@ -27,6 +28,19 @@ static const char text_line[] = "0123456789ABCDEFGHIJKLMNOPQRSTUV";
 
 static uint8_t block_data[BLOCK_SIZE];
 static bool block_irq;
+
+// осциллограмма команды scope: блок АЦП на 8,2 мс и текст, который
+// помещается в него на самой медленной скорости
+#define SCOPE_SAMPLES PLATFORM_BLOCK_MAX
+#define SCOPE_BAUD_MIN 9600
+#define SCOPE_TEXT_MAX 4
+
+static bool scope_active;
+static bool scope_uart_started;
+static uint32_t scope_baud;
+static uint8_t scope_rx[UART_TASK_MAX];
+static size_t scope_rx_size;
+static uint32_t scope_rx_errors;
 
 // Число без знака из десятичной записи. false — в записи не только цифры
 // или число не помещается в uint32_t.
@@ -494,6 +508,82 @@ static void cmd_block(const command_t *command)
     block_irq = use_irq;
 }
 
+static void print_scope_rx(const uint8_t *data, size_t size, uint32_t errors)
+{
+    scope_rx_size = size < sizeof(scope_rx) ? size : sizeof(scope_rx);
+    memcpy(scope_rx, data, scope_rx_size);
+    scope_rx_errors = errors;
+}
+
+static void print_scope(const uint16_t *samples, uint32_t count, uint32_t time_us)
+{
+    (void)time_us;
+    platform_uart_baud_set(PLATFORM_UART0, UART_DEFAULT_BAUD);
+    platform_uart_baud_set(PLATFORM_UART1, UART_DEFAULT_BAUD);
+    scope_active = false;
+
+    if (!scope_uart_started)
+    {
+        return;
+    }
+
+    printf("scope: %u samples, %u Hz, %u baud, uart1 ",
+           (unsigned)count, (unsigned)PLATFORM_SAMPLE_RATE_HZ, (unsigned)scope_baud);
+    print_bytes(scope_rx, scope_rx_size);
+    putchar(' ');
+    print_errors(scope_rx_errors);
+    putchar('\n');
+
+    for (uint32_t i = 0; i < count; i++)
+    {
+        printf("%u%c", (unsigned)samples[i],
+               (i + 1) % 16 == 0 || i + 1 == count ? '\n' : ' ');
+    }
+    printf("scope: end\n");
+}
+
+static void cmd_scope(const command_t *command)
+{
+    uint32_t baud;
+    if (command->argc != 2 || !parse_u32(command->argv[0], &baud) ||
+        baud < SCOPE_BAUD_MIN || baud > UART_DEFAULT_BAUD ||
+        strlen(command->argv[1]) == 0 || strlen(command->argv[1]) > SCOPE_TEXT_MAX)
+    {
+        printf("error: usage scope <baud> <text>\n");
+        return;
+    }
+
+    if (scope_active)
+    {
+        printf("error: adc busy\n");
+        return;
+    }
+
+    platform_uart_baud_set(PLATFORM_UART0, baud);
+    platform_uart_baud_set(PLATFORM_UART1, baud);
+    if (!block_task_start(SCOPE_SAMPLES, print_scope))
+    {
+        platform_uart_baud_set(PLATFORM_UART0, UART_DEFAULT_BAUD);
+        platform_uart_baud_set(PLATFORM_UART1, UART_DEFAULT_BAUD);
+        printf("error: adc busy\n");
+        return;
+    }
+
+    scope_active = true;
+    scope_uart_started = false;
+    scope_baud = baud;
+    scope_rx_size = 0;
+    scope_rx_errors = 0;
+    if (!uart_task_start(PLATFORM_UART0, PLATFORM_UART1,
+                         (const uint8_t *)command->argv[1], strlen(command->argv[1]),
+                         print_scope_rx))
+    {
+        printf("error: uart is busy\n");
+        return;
+    }
+    scope_uart_started = true;
+}
+
 static void cmd_profiling(const command_t *command)
 {
     (void)command;
@@ -530,6 +620,7 @@ const api_command_t api_commands[] = {
     { "text", "32 characters from UART1 to UART0", cmd_text },
     { "parity", "parity of UART0 and UART1: parity <rx> <tx>", cmd_parity },
     { "block", "64 bytes from UART1 to UART0: block irq|poll", cmd_block },
+    { "scope", "UART0 line on ADC: scope <baud> <text>", cmd_scope },
     { "uptime", "time since reset", cmd_uptime },
     { "led_enable", "turn LED on", cmd_led_enable },
     { "led_disable", "turn LED off", cmd_led_disable },
