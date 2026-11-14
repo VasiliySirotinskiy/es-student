@@ -50,3 +50,5 @@
 ![3.2.7](https://github.com/VasiliySirotinskiy/es-student/actions/workflows/check-3-2-7.yml/badge.svg)
 
 ![3.2.7д](https://github.com/VasiliySirotinskiy/es-student/actions/workflows/check-3-2-7d.yml/badge.svg)
+
+![3.3.1](https://github.com/VasiliySirotinskiy/es-student/actions/workflows/check-3-3-1.yml/badge.svg)
