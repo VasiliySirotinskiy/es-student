@@ -16,7 +16,11 @@
 #include "uart-task/uart-task.h"
 
 static const uint32_t PI_DEFAULT_TERMS = 1000000u;
-static const size_t ECHO_MAX_LENGTH = 32;
+static const size_t TEXT_MAX_LENGTH = 32;
+static const uint32_t UART_DEFAULT_BAUD = 115200u;
+
+// строка команды text: ровно 32 символа, столько же мест в очереди приёма
+static const char text_line[] = "0123456789ABCDEFGHIJKLMNOPQRSTUV";
 
 // Число без знака из десятичной записи. false — в записи не только цифры
 // или число не помещается в uint32_t.
@@ -39,6 +43,30 @@ static bool parse_u32(const char *text, uint32_t *value)
     }
 
     *value = (uint32_t)number;
+    return true;
+}
+
+static bool parse_i32(const char *text, int32_t *value)
+{
+    const char *digits = text;
+    if (*digits == '+' || *digits == '-')
+    {
+        digits++;
+    }
+    if (!isdigit((unsigned char)*digits))
+    {
+        return false;
+    }
+
+    char *end;
+    errno = 0;
+    long number = strtol(text, &end, 10);
+    if (*end != '\0' || errno == ERANGE || number < INT32_MIN || number > INT32_MAX)
+    {
+        return false;
+    }
+
+    *value = (int32_t)number;
     return true;
 }
 
@@ -272,26 +300,153 @@ static void print_echo(const uint8_t *data, size_t size, uint32_t errors)
     putchar('\n');
 }
 
-static void cmd_echo(const command_t *command)
+static bool text_argument(const command_t *command, const uint8_t **data, size_t *size)
 {
     if (command->argc != 1)
     {
-        printf("error: usage echo <text>\n");
-        return;
+        printf("error: usage %s <text>\n", command->name);
+        return false;
     }
 
-    size_t size = strlen(command->argv[0]);
-    if (size > ECHO_MAX_LENGTH)
+    *size = strlen(command->argv[0]);
+    if (*size > TEXT_MAX_LENGTH)
     {
         printf("error: text longer than 32\n");
+        return false;
+    }
+
+    *data = (const uint8_t *)command->argv[0];
+    return true;
+}
+
+static void cmd_echo(const command_t *command)
+{
+    const uint8_t *data;
+    size_t size;
+    if (!text_argument(command, &data, &size))
+    {
         return;
     }
 
-    if (!uart_task_start(PLATFORM_UART0, PLATFORM_UART0,
-                         (const uint8_t *)command->argv[0], size, print_echo))
+    if (!uart_task_start(PLATFORM_UART0, PLATFORM_UART0, data, size, print_echo))
     {
         printf("error: uart is busy\n");
     }
+}
+
+static void print_link_back(const uint8_t *data, size_t size, uint32_t errors)
+{
+    printf("1->0: ");
+    print_bytes(data, size);
+    putchar(' ');
+    print_errors(errors);
+    putchar('\n');
+}
+
+static void print_link_forth(const uint8_t *data, size_t size, uint32_t errors)
+{
+    printf("0->1: ");
+    print_bytes(data, size);
+    putchar(' ');
+    print_errors(errors);
+    putchar('\n');
+
+    if (!uart_task_start(PLATFORM_UART1, PLATFORM_UART0, data, size, print_link_back))
+    {
+        printf("error: uart is busy\n");
+    }
+}
+
+static void cmd_link(const command_t *command)
+{
+    const uint8_t *data;
+    size_t size;
+    if (!text_argument(command, &data, &size))
+    {
+        return;
+    }
+
+    if (!uart_task_start(PLATFORM_UART0, PLATFORM_UART1, data, size, print_link_forth))
+    {
+        printf("error: uart is busy\n");
+    }
+}
+
+static void cmd_baud_shift(const command_t *command)
+{
+    int32_t percent;
+    if (command->argc != 1 || !parse_i32(command->argv[0], &percent))
+    {
+        printf("error: usage baud_shift <percent>\n");
+        return;
+    }
+
+    if (percent < -50 || percent > 50)
+    {
+        printf("error: percent must be -50..50\n");
+        return;
+    }
+
+    uint32_t baud = UART_DEFAULT_BAUD * (uint32_t)(100 + percent) / 100u;
+    uint32_t actual_baud = platform_uart_baud_set(PLATFORM_UART1, baud);
+    printf("baud_shift: uart1 %u baud\n", (unsigned)actual_baud);
+}
+
+static void print_text(const uint8_t *data, size_t size, uint32_t errors)
+{
+    printf("text: %u chars ", (unsigned)size);
+    print_bytes(data, size);
+    putchar(' ');
+    print_errors(errors);
+    putchar('\n');
+}
+
+static void cmd_text(const command_t *command)
+{
+    (void)command;
+    if (!uart_task_start(PLATFORM_UART1, PLATFORM_UART0,
+                         (const uint8_t *)text_line, sizeof(text_line) - 1, print_text))
+    {
+        printf("error: uart is busy\n");
+    }
+}
+
+static bool parse_parity(const char *text, platform_parity_t *parity)
+{
+    if (strcmp(text, "none") == 0)
+    {
+        *parity = PLATFORM_PARITY_NONE;
+    }
+    else if (strcmp(text, "even") == 0)
+    {
+        *parity = PLATFORM_PARITY_EVEN;
+    }
+    else if (strcmp(text, "odd") == 0)
+    {
+        *parity = PLATFORM_PARITY_ODD;
+    }
+    else
+    {
+        return false;
+    }
+    return true;
+}
+
+static void cmd_parity(const command_t *command)
+{
+    platform_parity_t receiver;
+    platform_parity_t transmitter;
+    if (command->argc != 2 ||
+        !parse_parity(command->argv[0], &receiver) ||
+        !parse_parity(command->argv[1], &transmitter))
+    {
+        printf("error: usage parity none|even|odd none|even|odd\n");
+        return;
+    }
+
+    platform_uart_parity_set(PLATFORM_UART0, receiver);
+    platform_uart_parity_set(PLATFORM_UART1, transmitter);
+    printf("parity: uart0 %s, uart1 %s\n", command->argv[0], command->argv[1]);
 }
 
 static void cmd_profiling(const command_t *command)
@@ -325,6 +480,10 @@ const api_command_t api_commands[] = {
     { "edge", "rise and fall of the RC line: edge pp|od", cmd_edge },
     { "loop", "UART0 loopback: loop internal|pins", cmd_loop },
     { "echo", "text through UART0 and back: echo <text>", cmd_echo },
+    { "link", "text from UART0 to UART1 and back: link <text>", cmd_link },
+    { "baud_shift", "shift UART1 baud rate: baud_shift <percent>", cmd_baud_shift },
+    { "text", "32 characters from UART1 to UART0", cmd_text },
+    { "parity", "parity of UART0 and UART1: parity <rx> <tx>", cmd_parity },
     { "uptime", "time since reset", cmd_uptime },
     { "led_enable", "turn LED on", cmd_led_enable },
     { "led_disable", "turn LED off", cmd_led_disable },

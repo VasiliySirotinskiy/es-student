@@ -17,6 +17,10 @@ static const uint BUTTON_PIN = 15;
 #define UART0_TX_PIN 0
 #define UART0_RX_PIN 1
 
+// выводы модуля UART1
+#define UART1_TX_PIN 8
+#define UART1_RX_PIN 9
+
 #define UART_BAUD 115200
 
 static uart_inst_t *uart_of(platform_uart_t uart)
@@ -44,6 +48,10 @@ void platform_init(void)
     // делитель, формат 8N1, очереди, включение модуля
     uart_init(uart0, UART_BAUD);
     platform_uart_loop_set(false);
+
+    uart_init(uart1, UART_BAUD);
+    gpio_set_function(UART1_TX_PIN, GPIO_FUNC_UART);
+    gpio_set_function(UART1_RX_PIN, GPIO_FUNC_UART);
 }
 
 void platform_led_set(bool on)
@@ -143,4 +151,20 @@ size_t platform_uart_read(platform_uart_t uart, uint8_t *data, size_t size)
 uint32_t platform_uart_errors(platform_uart_t uart)
 {
     return uart_get_hw(uart_of(uart))->rsr & 0xf;
+}
+
+uint32_t platform_uart_baud_set(platform_uart_t uart, uint32_t baud)
+{
+    return uart_set_baudrate(uart_of(uart), baud);
+}
+
+void platform_uart_parity_set(platform_uart_t uart, platform_parity_t parity)
+{
+    static const uart_parity_t parities[] = {
+        UART_PARITY_NONE,
+        UART_PARITY_EVEN,
+        UART_PARITY_ODD,
+    };
+
+    uart_set_format(uart_of(uart), 8, 1, parities[parity]);
 }
