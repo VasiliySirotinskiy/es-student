@@ -65,3 +65,6 @@ typedef enum {
 uint32_t platform_uart_baud_set(platform_uart_t uart, uint32_t baud);
 
 void platform_uart_parity_set(platform_uart_t uart, platform_parity_t parity);
+
+// прерывание приёма UART0: принятые байты забирает обработчик
+void platform_uart_rx_irq_set(bool on);

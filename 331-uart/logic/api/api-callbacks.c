@@ -22,6 +22,12 @@ static const uint32_t UART_DEFAULT_BAUD = 115200u;
 // строка команды text: ровно 32 символа, столько же мест в очереди приёма
 static const char text_line[] = "0123456789ABCDEFGHIJKLMNOPQRSTUV";
 
+// блок команды block — 64 байта, вдвое длиннее очереди приёма
+#define BLOCK_SIZE 64
+
+static uint8_t block_data[BLOCK_SIZE];
+static bool block_irq;
+
 // Число без знака из десятичной записи. false — в записи не только цифры
 // или число не помещается в uint32_t.
 static bool parse_u32(const char *text, uint32_t *value)
@@ -449,6 +455,45 @@ static void cmd_parity(const command_t *command)
     printf("parity: uart0 %s, uart1 %s\n", command->argv[0], command->argv[1]);
 }
 
+static void print_block(const uint8_t *data, size_t size, uint32_t errors)
+{
+    platform_uart_rx_irq_set(false);
+
+    bool match = size > 0 && size <= sizeof(block_data) &&
+                 memcmp(data, block_data, size) == 0;
+    printf("block %s: %u/%u %s, ", block_irq ? "irq" : "poll",
+           (unsigned)size, (unsigned)BLOCK_SIZE, match ? "match" : "mismatch");
+    print_errors(errors);
+    putchar('\n');
+}
+
+static void cmd_block(const command_t *command)
+{
+    if (command->argc != 1 ||
+        (strcmp(command->argv[0], "irq") != 0 && strcmp(command->argv[0], "poll") != 0))
+    {
+        printf("error: usage block irq|poll\n");
+        return;
+    }
+
+    bool use_irq = strcmp(command->argv[0], "irq") == 0;
+    for (size_t i = 0; i < sizeof(block_data); i++)
+    {
+        block_data[i] = (uint8_t)i;
+    }
+
+    platform_uart_rx_irq_set(use_irq);
+    if (!uart_task_start(PLATFORM_UART1, PLATFORM_UART0,
+                         block_data, sizeof(block_data), print_block))
+    {
+        platform_uart_rx_irq_set(false);
+        printf("error: uart is busy\n");
+        return;
+    }
+
+    block_irq = use_irq;
+}
+
 static void cmd_profiling(const command_t *command)
 {
     (void)command;
@@ -484,6 +529,7 @@ const api_command_t api_commands[] = {
     { "baud_shift", "shift UART1 baud rate: baud_shift <percent>", cmd_baud_shift },
     { "text", "32 characters from UART1 to UART0", cmd_text },
     { "parity", "parity of UART0 and UART1: parity <rx> <tx>", cmd_parity },
+    { "block", "64 bytes from UART1 to UART0: block irq|poll", cmd_block },
     { "uptime", "time since reset", cmd_uptime },
     { "led_enable", "turn LED on", cmd_led_enable },
     { "led_disable", "turn LED off", cmd_led_disable },
