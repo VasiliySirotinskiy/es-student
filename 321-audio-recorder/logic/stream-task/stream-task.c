@@ -46,7 +46,8 @@ void stream_task_handle(void)
 
 bool stream_task_start(uint8_t bits)
 {
-    if (stream_state != STREAM_STATE_IDLE || frame_callback == NULL || bits != 16 ||
+    if (stream_state != STREAM_STATE_IDLE || frame_callback == NULL ||
+        (bits != 8 && bits != 16) ||
         !platform_stream_start(bits))
     {
         return false;
