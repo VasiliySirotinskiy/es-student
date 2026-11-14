@@ -1,0 +1,62 @@
+задание: 3.3.2
+проект: 331-uart
+устройство: 2e8a:000a
+серийный номер: 5303284728D63F9C
+порт: COM7
+начало: 2026-11-15T01:33:24
+   0.001 --> 
+   0.554 --> help
+   0.555 <-- help
+   0.556 <-- help             list of commands
+   0.556 <-- info             device passport
+   0.556 <-- edge             rise and fall of the RC line: edge pp|od
+   0.556 <-- loop             UART0 loopback: loop internal|pins
+   0.556 <-- echo             text through UART0 and back: echo <text>
+   0.557 <-- uptime           time since reset
+   0.557 <-- led_enable       turn LED on
+   0.557 <-- led_disable      turn LED off
+   0.557 <-- led_blink        blink LED
+   0.557 <-- led_period       set blink period: led_period <period_ms>
+   0.557 <-- button           button state and press count
+   0.617 <-- pi_start         start pi calculation: pi_start [<terms>]
+   0.617 <-- pi               pi result or calculation state
+   0.617 <-- profiling        stopwatches: count, mean and maximum
+   0.617 <-- profiling_reset  reset stopwatch results
+   1.563 --> info
+   1.627 <-- info
+   1.628 <-- name: es-uart
+   1.628 <-- version: 1.0.0
+   1.628 <-- project: 331-uart
+   1.629 <-- repo: https://github.com/VasiliySirotinskiy/es-student
+   1.629 <-- board: pico
+   1.629 <-- serial: 5303284728D63F9C
+   1.629 <-- chip: manufacturer 0x927, part 0x0002, revision 2
+   1.629 <-- pico-sdk: 2.3.0
+   2.625 --> loop internal
+   2.685 <-- loop internal
+   2.686 <-- loop: internal
+   3.187 --> echo ping
+   3.250 <-- echo ping
+   3.250 <-- rx: ping err: none
+   3.689 --> echo 0123456789ABCDEFGHIJKLMNOPQRSTUV
+   3.750 <-- echo 0123456789ABCDEFGHIJKLMNOPQRSTUV
+   3.751 <-- rx: 0123456789ABCDEFGHIJKLMNOPQRSTUV err: none
+   4.251 --> loop pins
+   4.314 <-- loop pins
+   4.314 <-- loop: pins
+   4.754 --> echo ping
+   4.817 <-- echo ping
+   4.817 <-- rx: ping err: none
+   5.256 --> echo 0123456789ABCDEFGHIJKLMNOPQRSTUV
+   5.319 <-- echo 0123456789ABCDEFGHIJKLMNOPQRSTUV
+   5.321 <-- rx: 0123456789ABCDEFGHIJKLMNOPQRSTUV err: none
+   5.760 --> echo 0123456789ABCDEFGHIJKLMNOPQRSTUVW
+   5.823 <-- echo 0123456789ABCDEFGHIJKLMNOPQRSTUVW
+   5.823 <-- error: text longer than 32
+   6.263 --> echo
+   6.324 <-- echo
+   6.324 <-- error: usage echo <text>
+   6.826 --> loop xx
+   6.890 <-- loop xx
+   6.890 <-- error: usage loop internal|pins
+итог: отправлено кадров 12, принято строк 43
