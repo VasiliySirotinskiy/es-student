@@ -26,6 +26,9 @@ float platform_voltage_read(void);
 // температура кристалла по встроенному датчику, градусы Цельсия
 float platform_temp_read(void);
 
+// код АЦП в вольты; код может быть дробным, например средним
+float platform_adc_volts(float code);
+
 // занят ли АЦП захватом
 bool platform_adc_busy(void);
 

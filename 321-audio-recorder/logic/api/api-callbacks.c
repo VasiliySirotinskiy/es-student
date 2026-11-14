@@ -3,6 +3,7 @@
 
 #include <ctype.h>
 #include <errno.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include "device/device.h"
@@ -22,6 +23,9 @@ static const uint32_t PI_DEFAULT_TERMS = 1000000u;
 
 // период индикатора записи во время потока
 #define STREAM_BLINK_PERIOD_MS 250
+
+// окно mic_level по умолчанию и окно mic_bias
+#define MIC_DEFAULT_WINDOW_MS 100
 
 // Число без знака из десятичной записи. false — в записи не только цифры
 // или число не помещается в uint32_t.
@@ -220,6 +224,15 @@ static void print_dma_cap(const uint16_t *samples, uint32_t count, uint32_t time
            (unsigned)minimum, (unsigned)maximum, (double)sum / count);
 }
 
+static void start_block(uint32_t count, block_task_callback_t on_block)
+{
+    if (telemetry_task_get_state() == TELEMETRY_STATE_RUN ||
+        !block_task_start(count, on_block))
+    {
+        printf("error: adc busy\n");
+    }
+}
+
 static void cmd_dma_cap(const command_t *command)
 {
     uint32_t count;
@@ -236,11 +249,87 @@ static void cmd_dma_cap(const command_t *command)
         return;
     }
 
-    if (telemetry_task_get_state() == TELEMETRY_STATE_RUN ||
-        !block_task_start(count, print_dma_cap))
+    start_block(count, print_dma_cap);
+}
+
+// среднее и отклонение от среднего в кодах АЦП: среднеквадратичное и наибольшее
+static void block_stats(const uint16_t *samples, uint32_t count, float *mean, float *rms, float *peak)
+{
+    uint32_t sum = 0;
+    for (uint32_t i = 0; i < count; i++)
     {
-        printf("error: adc busy\n");
+        sum += samples[i];
     }
+    int32_t center = (int32_t)(sum / count);
+
+    // в целых числах: в float на 8192 отсчётах ядро считало бы в 24 раза дольше
+    uint64_t squares = 0;
+    uint32_t largest = 0;
+    for (uint32_t i = 0; i < count; i++)
+    {
+        int32_t deviation = (int32_t)samples[i] - center;
+        uint32_t size = deviation < 0 ? -deviation : deviation;
+        squares += (uint64_t)(deviation * deviation);
+        if (size > largest)
+        {
+            largest = size;
+        }
+    }
+
+    *mean = (float)sum / count;
+    *rms = sqrtf((float)squares / count);
+    *peak = (float)largest;
+}
+
+static void print_mic_bias(const uint16_t *samples, uint32_t count, uint32_t time_us)
+{
+    (void)time_us;
+    float mean;
+    float rms;
+    float peak;
+    block_stats(samples, count, &mean, &rms, &peak);
+    printf("mic: bias %.3f V\n", (double)platform_adc_volts(mean));
+}
+
+static void print_mic_level(const uint16_t *samples, uint32_t count, uint32_t time_us)
+{
+    (void)time_us;
+    float mean;
+    float rms;
+    float peak;
+    block_stats(samples, count, &mean, &rms, &peak);
+    uint32_t window_ms = (uint32_t)((uint64_t)count * 1000u / PLATFORM_SAMPLE_RATE_HZ);
+    printf("mic: level %.1f mV rms, peak %.1f mV, %u ms\n",
+           (double)(platform_adc_volts(rms) * 1000.0f),
+           (double)(platform_adc_volts(peak) * 1000.0f),
+           (unsigned)window_ms);
+}
+
+static void cmd_mic_bias(const command_t *command)
+{
+    (void)command;
+    start_block(MIC_DEFAULT_WINDOW_MS * PLATFORM_SAMPLE_RATE_HZ / 1000u, print_mic_bias);
+}
+
+static void cmd_mic_level(const command_t *command)
+{
+    uint32_t window_ms = MIC_DEFAULT_WINDOW_MS;
+
+    if (command->argc > 1 ||
+        (command->argc == 1 && !parse_u32(command->argv[0], &window_ms)))
+    {
+        printf("error: usage mic_level [<ms>]\n");
+        return;
+    }
+
+    uint64_t count = (uint64_t)window_ms * PLATFORM_SAMPLE_RATE_HZ / 1000u;
+    if (count == 0 || count > PLATFORM_BLOCK_MAX)
+    {
+        printf("error: ms must be 1..185\n");
+        return;
+    }
+
+    start_block((uint32_t)count, print_mic_level);
 }
 
 void api_send_frame(const stream_header_t *header, const uint8_t *data, uint32_t bytes)
@@ -554,6 +643,8 @@ const api_command_t api_commands[] = {
     { "cap_start", "capture ADC: cap_start <N> <period_us>", cmd_cap_start },
     { "cap_dump", "captured samples and timer intervals", cmd_cap_dump },
     { "dma_cap", "capture ADC through DMA: dma_cap <N>", cmd_dma_cap },
+    { "mic_bias", "microphone DC bias", cmd_mic_bias },
+    { "mic_level", "microphone level: mic_level [<ms>]", cmd_mic_level },
     { "stream_start", "start ADC stream: stream_start [8|16]", cmd_stream_start },
     { "stream_stop", "stop ADC stream, counters and overruns", cmd_stream_stop },
     { "generate_tone", "generate test tone: generate_tone <Hz>", cmd_generate_tone },
