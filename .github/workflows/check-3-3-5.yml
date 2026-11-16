@@ -16,6 +16,47 @@ concurrency:
 
 jobs:
   check:
-    uses: ant-lab-ru/es-test/.github/workflows/check-3-3-5.yml@master
-    secrets:
-      ES_ACCOUNT_SECRET: ${{ secrets.ES_ACCOUNT_SECRET }}
+    name: Осциллограмма линии UART
+    runs-on: ubuntu-latest
+    steps:
+      - name: Репозиторий обучающегося
+        uses: actions/checkout@v7
+        with:
+          path: student
+
+      - name: Проверки курса
+        uses: actions/checkout@v7
+        with:
+          repository: ant-lab-ru/es-test
+          path: es-test
+
+      - name: Инструменты сборки
+        uses: ant-lab-ru/es-test/.github/actions/pico-toolchain@master
+
+      - name: Проверка
+        run: bash es-test/checks/check-3-3-5.sh student "331-uart"
+        env:
+          CHECKS_JSON: ${{ runner.temp }}/report.json
+
+      - name: Отправка результата на платформу
+        if: always()
+        env:
+          LMS_URL: https://es.ant-lab.ru/api/results/
+          ES_ACCOUNT_SECRET: ${{ secrets.ES_ACCOUNT_SECRET }}
+          REPORT: ${{ runner.temp }}/report.json
+        run: |
+          if [ -z "$LMS_URL" ] || [ -z "$ES_ACCOUNT_SECRET" ]; then
+            echo "Приёмник или секрет не заданы — отправка пропущена."
+            exit 0
+          fi
+          if [ ! -f "$REPORT" ]; then
+            echo "Отчёт не сформирован — отправлять нечего."
+            exit 0
+          fi
+          code=$(curl -sS -o response.txt -w '%{http_code}' -X POST "$LMS_URL" \
+            -H "Authorization: Bearer $ES_ACCOUNT_SECRET" \
+            -H 'Content-Type: application/json' \
+            --data @"$REPORT")
+          echo "Ответ платформы: $code"
+          cat response.txt; echo
+          [ "$code" = "200" ]
